@@ -40,18 +40,30 @@ public class MainFrame extends JFrame {
 
         // לוגיקה לרענון הגדרות
         btnFetch.addActionListener(e -> {
-            try {
-                currentConfig = networkManager.fetchConfig();
-                mazePanel = new MazePanel(currentConfig);
-                remove(((BorderLayout)getLayout()).getLayoutComponent(BorderLayout.CENTER));
-                add(mazePanel, BorderLayout.CENTER);
-                revalidate();
-                repaint();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
-            }
-        });
+            // הפעלה ב-SwingWorker כדי לא לתקוע את הממשק
+            new SwingWorker<MazeConfig, Void>() {
+                @Override
+                protected MazeConfig doInBackground() throws Exception {
+                    // פעולת הרשת תרוץ כאן ברקע
+                    return networkManager.fetchConfig();
+                }
 
+                @Override
+                protected void done() {
+                    try {
+                        currentConfig = get(); // קבלת התוצאה מהרקע
+                        // רענון ה-Panel בבטחה
+                        mazePanel = new MazePanel(currentConfig);
+                        remove(((BorderLayout)getContentPane().getLayout()).getLayoutComponent(BorderLayout.CENTER));
+                        add(mazePanel, BorderLayout.CENTER);
+                        revalidate();
+                        repaint();
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(MainFrame.this, "Error fetching config: " + ex.getMessage());
+                    }
+                }
+            }.execute(); // הפעלת העבודה ברקע
+        });
         // לוגיקה למשיכת מבוך
         btnGetMaze.addActionListener(e -> {
             try {
