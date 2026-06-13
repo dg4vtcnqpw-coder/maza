@@ -43,11 +43,13 @@ public class NetworkManager {
         int h = image.getHeight();
         boolean[][] maze = new boolean[w][h];
 
+        // שליפת כל הפיקסלים בפעולה אחת (בלוק) מונעת אלפי קריאות לפונקציה ומשפרת משמעותית את הביצועים
+        int[] pixels = image.getRGB(0, 0, w, h, null, 0, w);
+
         for (int i = 0; i < w; i++) {
             for (int j = 0; j < h; j++) {
-                int pixel = image.getRGB(i, j);
-                // פיקסל לבן נחשב למעבר (true), אחרת זה קיר (false)
-                maze[i][j] = (pixel == -1);
+                // הפיקסלים נשמרים במערך שורה אחרי שורה, ולכן הנוסחה היא: j * width + i
+                maze[i][j] = (pixels[j * w + i] == -1);
             }
         }
         return maze;

@@ -19,7 +19,7 @@ public class MainFrame extends JFrame {
 
     public MainFrame() {
         setTitle("Maze Game");
-        setSize(600, 600);
+        setSize(1000, 700); // גודל חלון מוקטן יותר כבקשתך
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
