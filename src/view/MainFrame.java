@@ -19,7 +19,7 @@ public class MainFrame extends JFrame {
 
     public MainFrame() {
         setTitle("Maze Game");
-        setSize(700, 700);
+        setSize(600, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -29,14 +29,22 @@ public class MainFrame extends JFrame {
         JButton btnFetch = new JButton("Refresh Config");
         JButton btnGetMaze = new JButton("GET MAZE");
         JButton btnCheck = new JButton("Check Solution"); // הכפתור החדש
+        JButton btnZoomIn = new JButton("+"); // כפתור זום אין
+        JButton btnZoomOut = new JButton("-"); // כפתור זום אאוט
 
         topPanel.add(new JLabel("W:")); topPanel.add(txtWidth);
         topPanel.add(new JLabel("H:")); topPanel.add(txtHeight);
         topPanel.add(btnFetch); topPanel.add(btnGetMaze);
         topPanel.add(btnCheck); // הוספה לפאנל
+        topPanel.add(btnZoomIn);
+        topPanel.add(btnZoomOut);
 
         add(topPanel, BorderLayout.NORTH);
-        add(mazePanel, BorderLayout.CENTER);
+        add(new JScrollPane(mazePanel), BorderLayout.CENTER); // עטיפה בפאנל גלילה
+
+        // פעולות כפתורי הזום
+        btnZoomIn.addActionListener(e -> mazePanel.zoomIn());
+        btnZoomOut.addActionListener(e -> mazePanel.zoomOut());
 
         // לוגיקה לרענון הגדרות
         btnFetch.addActionListener(e -> {
@@ -53,9 +61,18 @@ public class MainFrame extends JFrame {
                     try {
                         currentConfig = get(); // קבלת התוצאה מהרקע
                         // רענון ה-Panel בבטחה
+                        boolean[][] oldMaze = mazePanel.getMazeArray();
                         mazePanel = new MazePanel(currentConfig);
-                        remove(((BorderLayout)getContentPane().getLayout()).getLayoutComponent(BorderLayout.CENTER));
-                        add(mazePanel, BorderLayout.CENTER);
+                        if (oldMaze != null) {
+                            mazePanel.setMaze(oldMaze); // החזרת המבוך לאחר העדכון
+                        }
+                        Component center = ((BorderLayout)getContentPane().getLayout()).getLayoutComponent(BorderLayout.CENTER);
+                        if (center instanceof JScrollPane) {
+                            ((JScrollPane) center).setViewportView(mazePanel);
+                        } else {
+                            remove(center);
+                            add(new JScrollPane(mazePanel), BorderLayout.CENTER);
+                        }
                         revalidate();
                         repaint();
                     } catch (Exception ex) {
@@ -66,15 +83,39 @@ public class MainFrame extends JFrame {
         });
         // לוגיקה למשיכת מבוך
         btnGetMaze.addActionListener(e -> {
+            btnGetMaze.setEnabled(false); // חסימת הכפתור עד לסיום הטעינה
+            int w, h;
             try {
-                int w = Integer.parseInt(txtWidth.getText());
-                int h = Integer.parseInt(txtHeight.getText());
-                BufferedImage img = networkManager.fetchMazeImage(w, h);
-                boolean[][] maze = networkManager.parseMaze(img);
-                mazePanel.setMaze(maze);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+                w = Integer.parseInt(txtWidth.getText());
+                h = Integer.parseInt(txtHeight.getText());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Width and height must be valid integers.");
+                btnGetMaze.setEnabled(true);
+                return;
             }
+
+            // הפעלה ב-SwingWorker כדי לא לתקוע את הממשק
+            new SwingWorker<boolean[][], Void>() {
+                @Override
+                protected boolean[][] doInBackground() throws Exception {
+                    BufferedImage img = networkManager.fetchMazeImage(w, h);
+                    if (img == null) {
+                        throw new Exception("Failed to read image from server");
+                    }
+                    return networkManager.parseMaze(img);
+                }
+
+                @Override
+                protected void done() {
+                    btnGetMaze.setEnabled(true); // שחרור הכפתור לאחר סיום
+                    try {
+                        boolean[][] maze = get();
+                        mazePanel.setMaze(maze);
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(MainFrame.this, "Error fetching maze: " + ex.getMessage());
+                    }
+                }
+            }.execute();
         });
 
         // לוגיקה לפתרון המבוך

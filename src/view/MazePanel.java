@@ -13,6 +13,7 @@ public class MazePanel extends JPanel {
     private List<Point> solutionPath;
     private int animationIndex = 0;
     private Timer timer;
+    private double zoomFactor = 1.0;
 
     public MazePanel(MazeConfig config) {
         this.config = config;
@@ -26,7 +27,42 @@ public class MazePanel extends JPanel {
         this.maze = maze;
         this.solutionPath = null;
         this.animationIndex = 0;
+
+        // חישוב זום התחלתי דינמי כדי שהמבוך יתחיל תמיד בגודל קטן ונוח למסך (אך לא קטן מידי)
+        if (maze != null && maze.length > 0) {
+            int maxDim = Math.max(maze.length, maze[0].length);
+            this.zoomFactor = 400.0 / (maxDim * 10.0);
+            this.zoomFactor = Math.max(0.2, Math.min(this.zoomFactor, 1.0));
+        } else {
+            this.zoomFactor = 1.0;
+        }
+
         if (timer != null) timer.stop();
+
+        updatePreferredSize();
+        
+        // חזרה חלקה להתחלת המבוך (למעלה ושמאלה) כשנטען מבוך חדש
+        SwingUtilities.invokeLater(() -> scrollRectToVisible(new Rectangle(0, 0, 1, 1)));
+    }
+
+    public void zoomIn() {
+        zoomFactor *= 1.2;
+        updatePreferredSize();
+    }
+
+    public void zoomOut() {
+        zoomFactor /= 1.2;
+        updatePreferredSize();
+    }
+
+    private void updatePreferredSize() {
+        // מחשב את גודל הפאנל בהתאם לגודל המבוך ורמת הזום הנוכחית
+        if (maze != null && maze.length > 0) {
+            int w = (int) (maze.length * 10 * zoomFactor);
+            int h = (int) (maze[0].length * 10 * zoomFactor);
+            setPreferredSize(new Dimension(w, h));
+            revalidate();
+        }
         repaint();
     }
 
@@ -55,8 +91,9 @@ public class MazePanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g; // הגדרת g2 כדי שנוכל לצייר קווים עבים
         int cols = maze.length;
         int rows = maze[0].length;
-        int cellWidth = getWidth() / cols;
-        int cellHeight = getHeight() / rows;
+        // וידוא שגודל התא לא יהיה קטן מ-1, אחרת הפונקציה fillRect לא תצייר כלום
+        int cellWidth = Math.max(1, getWidth() / cols);
+        int cellHeight = Math.max(1, getHeight() / rows);
 
         for (int i = 0; i < cols; i++) {
             for (int j = 0; j < rows; j++) {
@@ -67,6 +104,7 @@ public class MazePanel extends JPanel {
 
         if (solutionPath != null) {
             g2.setColor(config.getPathColor());
+            // החזרת עובי הקו לגודל המקורי (10) כפי שהיה בעבר
             g2.setStroke(new BasicStroke(10));
 
             int limit = Math.min(animationIndex, solutionPath.size() - 1);
