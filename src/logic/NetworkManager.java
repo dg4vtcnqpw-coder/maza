@@ -8,11 +8,14 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 public class NetworkManager {
-    private final HttpClient client = HttpClient.newHttpClient();
+    private final HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(6))
+            .build();
 
-    // פונקציה למשיכת הגדרות הציור מהשרת
+    // שליפת ה-JSON ופירוקו הידני ללא ספריות חיצוניות
     public MazeConfig fetchConfig() throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://backend-qcf9.onrender.com/fm1/get-render-config"))
@@ -20,7 +23,6 @@ public class NetworkManager {
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         String json = response.body();
-        System.out.println("קיבלתי מהשרת: " + json);
 
         MazeConfig config = new MazeConfig();
         config.setWallCellColor(extractString(json, "wallCellColor"));
@@ -31,31 +33,32 @@ public class NetworkManager {
         return config;
     }
 
-    // פונקציה למשיכת תמונת המבוך מהשרת
+    // משיכת תמונת המבוך הגולמית מהשרת
     public BufferedImage fetchMazeImage(int width, int height) throws Exception {
         String urlString = "https://backend-qcf9.onrender.com/fm1/get-maze-image?width=" + width + "&height=" + height;
         return ImageIO.read(new URL(urlString));
     }
 
-    // פונקציה להמרת התמונה למערך בוליאני של מבוך
+    // שלב 6 + 7: מעבר על הפיקסלים ופענוח המבנה (פיקסל לבן = מעבר חופשי)
     public boolean[][] parseMaze(BufferedImage image) {
         int w = image.getWidth();
         int h = image.getHeight();
         boolean[][] maze = new boolean[w][h];
 
-        // שליפת כל הפיקסלים בפעולה אחת (בלוק) מונעת אלפי קריאות לפונקציה ומשפרת משמעותית את הביצועים
-        int[] pixels = image.getRGB(0, 0, w, h, null, 0, w);
-
         for (int i = 0; i < w; i++) {
             for (int j = 0; j < h; j++) {
-                // הפיקסלים נשמרים במערך שורה אחרי שורה, ולכן הנוסחה היא: j * width + i
-                maze[i][j] = (pixels[j * w + i] == -1);
+                int rgb = image.getRGB(i, j);
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8) & 0xFF;
+                int b = rgb & 0xFF;
+
+                // בדיקה אם הפיקסל לבן (מעבר) או צבעוני/כהה (קיר)
+                maze[i][j] = (r == 255 && g == 255 && b == 255);
             }
         }
         return maze;
     }
 
-    // פונקציית עזר לחילוץ ערכים מתוך ה-JSON
     private String extractString(String json, String key) {
         String keyWithQuotes = "\"" + key + "\":";
         int start = json.indexOf(keyWithQuotes) + keyWithQuotes.length();
